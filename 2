@@ -1,0 +1,354 @@
+#coding:utf-8
+AAAAAimport Tkinter
+AAAAAimport tkFileDialog
+AAAAAimport re
+AAAAAimport matplotlib.pyplot as plt
+AAAAAimport tkFont
+AAAAAimport os
+AAAAAimport pandas as pd
+AAAAAimport xlsxwriter
+AAAAAimport tkMessageBox as msg
+AAAAAfrom matplotlib.ticker import FormatStrFormatter
+AAAAAimport pdb
+AAAAA
+AAAAA#import sys
+AAAAA#reload(sys)
+AAAAA#sys.setdefaultencoding('utf-8')
+AAAAA
+AAAAAfileType=[('','.xlsm'),('','.csv'),('','.xlsx'),('','.xls')]
+AAAAA
+AAAAAdef getFilePath():
+AAAAA    filepath=tkFileDialog.askopenfilename(initialdir=os.getcwd(),title="选取文件",filetypes=fileType)
+AAAAA    #root.destroy() 
+AAAAA    #root.quit()
+AAAAA    return(filepath)
+AAAAAdef importDataFile():
+AAAAA    exlpath=getFilePath()
+AAAAA    global df
+AAAAA    df=pd.read_excel(exlpath,sheetname=0)
+AAAAA    eparam_c=re.compile('^\w+\(.*\)',re.IGNORECASE)
+AAAAA    etest_tuple=('cgg_0v','cgg_inv','cgg_acc','cgc_0v','cgc_inv','cgc_acc','vt_gm','vt_lin','vt_sat','idlin','idsat','ideff',
+AAAAA                'ioff','isoff','igoff','iboff','ig_inv','id1','id2','dibl','swing_lin','swing_sat','body_sat','gm','rout')
+AAAAA    for eachcolumn in df.columns:
+AAAAA        eparam_m=eparam_c.match(eachcolumn)
+AAAAA        if df[eachcolumn].count()==0:
+AAAAA            #删除空列
+AAAAA            df.drop(eachcolumn,axis=1, inplace=True)#axis参数告诉函数舍弃列还是行。axis=0舍弃行。
+AAAAA        elif eparam_m or eachcolumn.lower() in etest_tuple:
+AAAAA            ltb6.insert(Tkinter.END,str(eachcolumn))
+AAAAA        else:
+AAAAA            ltb.insert(Tkinter.END,str(eachcolumn))
+AAAAAdef selectLtbIndex(selecttoLtb):
+AAAAA    listbox_tuple=(ltb,ltb1,ltb2,ltb3,ltb4,ltb5,ltb6)
+AAAAA    for eachltb in  listbox_tuple:
+AAAAA        select_list=[]
+AAAAA        select_list=list(eachltb.curselection())
+AAAAA        for eachselect in eachltb.curselection():
+AAAAA            if eachltb.get(eachselect) not in selecttoLtb.get(0,selecttoLtb.size()-1):
+AAAAA                selecttoLtb.insert(Tkinter.END,eachltb.get(eachselect))
+AAAAA            else:
+AAAAA                select_list.remove(eachselect)
+AAAAA                msg.showinfo('Attention:',eachltb.get(eachselect)+' is alreay selected in')
+AAAAA        if len(select_list)>0:
+AAAAA            select_list.reverse()
+AAAAA            for each_item in select_list:
+AAAAA                eachltb.delete(each_item)
+AAAAA                
+AAAAA#df[(df['a'] > 0) & (df['b'] < 0) | df['c'] > 0] 行条件筛选
+AAAAAgrp_tuple=('k1','k2','k3','k4','k5','k6','k7','k8','k9')
+AAAAA
+AAAAAdef getDfmGrp(InDfm,LtBxLst,funcSendDfm,FlNm='',PartFigNm='',EtstNm=''):
+AAAAA    grpby=list(LtBxLst)
+AAAAA    Lenlist=len(LtBxLst)
+AAAAA    grp=InDfm.groupby(by=grpby,sort=False)
+AAAAA    #pdb.set_trace()
+AAAAA    key_tuple=grp_tuple[:Lenlist]
+AAAAA    for key_tuple,group in grp:
+AAAAA        nameStr=''
+AAAAA        if Lenlist>1:
+AAAAA            for ky in key_tuple:
+AAAAA                nameStr=nameStr+'_'+ str(ky)
+AAAAA        else:
+AAAAA            nameStr=nameStr+'_'+ str(key_tuple)
+AAAAA        
+AAAAA        if nameStr.startswith('_'):
+AAAAA            nameStr=nameStr[1:]
+AAAAA        if nameStr.find('_ckt'):
+AAAAA            nameStr=nameStr.replace('_ckt','')
+AAAAA        funcSendDfm(group,nameStr,FlNm,PartFigNm,EtstNm)
+AAAAA        
+AAAAAdef getMultiFileData(btn):
+AAAAA    #首先获取TrendBy data，以便后续调用，且限制trendby为唯一参数
+AAAAA    global trendParam,btnName
+AAAAA    btnName=str(btn['text'])
+AAAAA    if ltb4.size()==1:
+AAAAA        trendParam=ltb4.get(0)
+AAAAA    elif ltb4.size()==0:
+AAAAA        msg.showinfo('Attention:','Please select a TrendBy Parameter!')
+AAAAA    elif ltb4.size()>1:
+AAAAA        msg.showinfo('Attention:','Only ONE TrendBy Parameter is allowed!')
+AAAAA    #当前目录下创建文件夹ExcelOut
+AAAAA    if not os.path.exists('ExcelOut'):
+AAAAA        os.mkdir('ExcelOut')
+AAAAA    
+AAAAA    if ltb1.size()>0:
+AAAAA        #get listbox tuple
+AAAAA        lst1=ltb1.get(0,ltb1.size()-1)
+AAAAA        getDfmGrp(df,lst1,getMultiFigureData)
+AAAAA    else:
+AAAAA        msg.showinfo('Error:','No Item in 【MultiFileBy】 Box!')
+AAAAA    
+AAAAA    #delete images if user select checkbox
+AAAAA    if chkbtn3Value.get()==1:
+AAAAA            delete_file_jpg(os.getcwd())
+AAAAA
+AAAAAdef getMultiFigureData(df_MultiFile,fileName,*NoNeed):
+AAAAA    global book,sheet
+AAAAA    global sheetname,book_path,img_path
+AAAAA    global row,row_ExcelReport
+AAAAA    global col_ExcelReport
+AAAAA    row_ExcelReport=0
+AAAAA    col_ExcelReport=0
+AAAAA    sheetname=str(fileName)
+AAAAA    
+AAAAA    book_path='ExcelOut\\'+fileName+'.xlsx'
+AAAAA    if os.path.exists(book_path):
+AAAAA        os.remove(book_path)
+AAAAA        
+AAAAA    img_path='ExcelOut\\'+fileName+'_img'
+AAAAA    if not os.path.exists(img_path):
+AAAAA        os.mkdir(img_path)
+AAAAA    
+AAAAA    book = xlsxwriter.Workbook(book_path)
+AAAAA    sheet = book.add_worksheet(sheetname)
+AAAAA    row=0
+AAAAA
+AAAAA    if ltb2.size()>0:
+AAAAA        lst2=ltb2.get(0,ltb2.size()-1)
+AAAAA        getDfmGrp(df_MultiFile,lst2,multiEtestData,fileName)
+AAAAA    else:
+AAAAA        msg.showinfo('Error:','No Item in 【MultiFigureBy】 Box!')
+AAAAA    book.close()
+AAAAA
+AAAAAdef multiEtestData(df_MultiFig,strpartFigNm,fileName,*NoNeed):
+AAAAA    global row
+AAAAA    global col
+AAAAA    col=0
+AAAAA    
+AAAAA    for eachEtest in ltb6.get(0,ltb6.size()-1):
+AAAAA        multiPlotData(fileName,eachEtest,strpartFigNm,df_MultiFig)
+AAAAA    row=row+18
+AAAAA        
+AAAAAdef multiPlotData(fileName,EtestNm,strpartFigNm,df_MultiEtest):
+AAAAA    global col
+AAAAA
+AAAAA    if btnName=='GenImageReport':
+AAAAA        plt.figure()
+AAAAA        rect=[0.2,0.1,0.7,0.8]
+AAAAA        fig=plt.axes(rect)
+AAAAA        #rect=[左, 下, 宽, 高] 规定的矩形区域,rect矩形简写，这里的数值都是以figure大小为比例，
+AAAAA        #因此，若是要两个axes并排显示，那么axes[2]的左=axes[1].左+axes[1].宽，这样axes[2]才不会和axes[1]重叠。
+AAAAA    
+AAAAA    if ltb3.size()>0:
+AAAAA        lst3=ltb3.get(0,ltb3.size()-1)
+AAAAA        getDfmGrp(df_MultiEtest,lst3,drawPlot,fileName,strpartFigNm,EtstNm=EtestNm)
+AAAAA#        if df3_ltb1.empty==False:
+AAAAA#            lblnm=str(eachltb3_item1_element)
+AAAAA#            drawPlot(df3_ltb1[[trendParam,EtestNm]],trendParam,EtestNm,lblnm)
+AAAAA    else:
+AAAAA        msg.showinfo('Error:','No Item in 【MultiPlotBy】 Box!')
+AAAAA    
+AAAAA    if btnName=='GenImageReport':
+AAAAA        NoInFileNameStr_tuple=('/','*','\\','?','<','>',':','"','|',':')
+AAAAA        image_name=fileName+'_'+strpartFigNm+'_'+ str(EtestNm)+'.jpg'
+AAAAA        for eachstr in NoInFileNameStr_tuple:
+AAAAA            if eachstr in image_name:
+AAAAA                image_name=image_name.replace(eachstr,'')
+AAAAA                
+AAAAA        xmajorFormatter = FormatStrFormatter('%5.2f') #设置x轴标签文本的格式
+AAAAA        figure_name=strpartFigNm+'_'+ str(EtestNm)
+AAAAA        box=fig.get_position()
+AAAAA        fig.set_position([box.x0,box.y0,box.width*0.8,box.height])
+AAAAA        plt.title(figure_name,fontsize=16,family="Arial",weight='bold')
+AAAAA        plt.xlabel('L',fontsize=13,family="Arial",weight='bold')
+AAAAA        plt.ylabel(str(EtestNm),fontsize=13,family="Arial",weight='bold')
+AAAAA        plt.xticks(fontsize=12,weight='bold')
+AAAAA        plt.yticks(fontsize=12,weight='bold')
+AAAAA        if trendParam in ('L','NFIN'):
+AAAAA            plt.xscale('log')
+AAAAA            
+AAAAA
+AAAAA        fig.xaxis.set_major_formatter(xmajorFormatter)
+AAAAA        fig.grid(color='#95a5a6',linestyle='--', linewidth=1 ,axis='both',alpha=0.4)
+AAAAA        fig.legend(loc='center left',bbox_to_anchor=(1, 0.5),ncol=1,fontsize=10)
+AAAAA        fig.spines['bottom'].set_linewidth(2)
+AAAAA        fig.spines['top'].set_linewidth(2)
+AAAAA        fig.spines['left'].set_linewidth(2)
+AAAAA        fig.spines['right'].set_linewidth(2)
+AAAAA        image_full_name=img_path+'\\'+image_name
+AAAAA        plt.savefig(image_full_name,dpi=1000)
+AAAAA        plt.show()
+AAAAA        sheet.insert_image(row,col,image_full_name,{'x_scale':0.585,'y_scale':0.62})#,{'x_scale':0.3,'y_scale':0.4}
+AAAAA    col+=7
+AAAAA                
+AAAAAdef drawPlot(plotDataDfm,LabelNm,fileName,strpartFigNm,EtestNm,*NoNeed):
+AAAAA    global col
+AAAAA    print plotDataDfm
+AAAAA    xcolNm=trendParam
+AAAAA    ycolNm=EtestNm
+AAAAA    #两列的表示方法为df[['NFIN','W']]
+AAAAA    df_plotData=plotDataDfm[[xcolNm,ycolNm]]
+AAAAA    
+AAAAA    df_plotData=df_plotData.fillna(' ')
+AAAAA    x=df_plotData[xcolNm].values
+AAAAA    y=df_plotData[ycolNm].values
+AAAAA    #print df_plotData
+AAAAA    
+AAAAA    if btnName=='GenImageReport':
+AAAAA        x=df_plotData[xcolNm].values
+AAAAA        y=df_plotData[ycolNm].values
+AAAAA        if 'sim' in LabelNm:
+AAAAA            plt.plot(x,y,'p-',label=str(LabelNm),color='black',markersize=7,linewidth = '1',)
+AAAAA        elif 'target' in LabelNm.lower():
+AAAAA            plt.plot(x,y,'s',label=str(LabelNm),markersize=7)
+AAAAA        elif 'model' in LabelNm:
+AAAAA            plt.plot(x,y,'p-',label=str(LabelNm),color='blue',markersize=7,linewidth = '1',)
+AAAAA        else:
+AAAAA            plt.plot(x,y,'-o',label=str(LabelNm),markersize=7)
+AAAAA            
+AAAAA        for a,b in zip(x,y):
+AAAAA            plt.text(a, b, '%f' % b, ha='center', va= 'bottom',fontsize=11)
+AAAAA    elif btnName=='GenExcelReport':
+AAAAA        global col_ExcelReport
+AAAAA        global row_ExcelReport
+AAAAA        sheet.write(row,col+1,trendParam)
+AAAAA        sheet.write(row,col+2,EtestNm)
+AAAAA        sheet.write(row,col+0,fileName)
+AAAAA        sheet.write(row+1,col+0,strpartFigNm)
+AAAAA        sheet.write(row+2,col+0,LabelNm)
+AAAAA        sheet.write_column(row+1,col+1,x)
+AAAAA        sheet.write_column(row+1,col+2,y)
+AAAAA    col+=3
+AAAAA               
+AAAAAdef delete_file_jpg(file_path):
+AAAAA    for root,dirs,files in os.walk(file_path):
+AAAAA        for name in files:
+AAAAA            if name.endswith('.jpg'):
+AAAAA                os.remove(os.path.join(root,name))
+AAAAA
+AAAAAroot=Tkinter.Tk()
+AAAAA#root.geometry('1500x800')
+AAAAAroot.geometry('+10+10') 
+AAAAAroot.minsize(400,200) 
+AAAAAroot.title("test") 
+AAAAA
+AAAAAfm1=Tkinter.Frame(root,bd=5,bg='',height=70,width=400,highlightthickness=30)
+AAAAAfm1.grid(row=0,rowspan=1,column=1,columnspan=2,padx=0,pady=1,sticky='w')
+AAAAA
+AAAAAfot0=tkFont.Font(family='Times',weight='bold',underline=1,size=18)
+AAAAAlfm1=Tkinter.LabelFrame(root,text='Trend Option',font=fot0,labelanchor='n',bd=4,height=200,width=200,highlightthickness=0)
+AAAAAlfm1.grid(row=1,rowspan=1,column=1,columnspan=2,padx=5,pady=1,sticky='w')
+AAAAA
+AAAAAbtn1=Tkinter.Button(fm1,text="GenImageReport",font=fot0,command=lambda:getMultiFileData(btn1),bg='grey',fg='red',width=20,height=2)
+AAAAAbtn1.grid(row=1,rowspan=1,column=3,columnspan=2,padx=10,pady=0)
+AAAAAbtn2=Tkinter.Button(fm1,text="GenExcelReport",font=fot0,command=lambda:getMultiFileData(btn2),bg='grey',fg='red',width=20,height=2)
+AAAAAbtn2.grid(row=1,rowspan=1,column=5,columnspan=2,padx=10,pady=0,sticky='w')
+AAAAAbtn3=Tkinter.Button(fm1,text="ImportExcelData",font=fot0,command=importDataFile,bg='grey',fg='red',width=20,height=2)
+AAAAAbtn3.grid(row=1,rowspan=1,column=7,columnspan=1,padx=10,pady=0,sticky='e')
+AAAAA
+AAAAAchkbtn3Value=Tkinter.IntVar()
+AAAAAfot1=tkFont.Font(family='Helvetica',weight='bold',underline=1)
+AAAAAchkbtn3=Tkinter.Checkbutton(fm1, text="DeleteImages",font=fot1,bg='grey',fg='black',variable=chkbtn3Value,onvalue=1,offvalue=0,width=20,height=2)
+AAAAAchkbtn3.grid(row=1,rowspan=1,column=0,columnspan=2,padx=10,pady=0)
+AAAAA
+AAAAA
+AAAAAltbValue=Tkinter.StringVar()
+AAAAAltb=Tkinter.Listbox(lfm1,activestyle="dotbox",bg='grey',fg='black',listvariable=ltbValue,selectmode=Tkinter.EXTENDED,height=22,width=30)
+AAAAA#ltb.insert(Tkinter.END,'Gavin')
+AAAAAltb.grid(row=1,rowspan=6,column=0,columnspan=2,padx=1,pady=1,sticky='n')
+AAAAA
+AAAAAfm2=Tkinter.Frame(lfm1,bd=1,bg='grey',height=70,width=100)
+AAAAAfm2.grid(row=1,rowspan=1,column=2,columnspan=2,padx=0,pady=1,sticky='w')
+AAAAAfm3=Tkinter.Frame(lfm1,bd=1,bg='grey',height=70,width=100)
+AAAAAfm3.grid(row=1,rowspan=1,column=4,columnspan=2,padx=0,pady=1,sticky='w')
+AAAAAfm4=Tkinter.Frame(lfm1,bd=1,bg='grey',height=70,width=100)
+AAAAAfm4.grid(row=1,rowspan=1,column=6,columnspan=2,padx=0,pady=1,sticky='w')
+AAAAAfm5=Tkinter.Frame(lfm1,bd=1,bg='grey',height=70,width=100)
+AAAAAfm5.grid(row=1,rowspan=1,column=8,columnspan=2,padx=0,pady=1,sticky='w')
+AAAAAfm6=Tkinter.Frame(lfm1,bd=1,bg='grey',height=70,width=100)
+AAAAAfm6.grid(row=1,rowspan=1,column=10,columnspan=2,padx=0,pady=1,sticky='w')
+AAAAAfm7=Tkinter.Frame(lfm1,bd=1,bg='grey',height=70,width=100)
+AAAAAfm7.grid(row=1,rowspan=1,column=12,columnspan=2,padx=0,pady=1,sticky='w')
+AAAAAfm8=Tkinter.Frame(lfm1,bd=1,bg='grey',height=70,width=100)
+AAAAAfm8.grid(row=1,rowspan=1,column=14,columnspan=2,padx=0,pady=1,sticky='w')
+AAAAA
+AAAAAltb1Value=Tkinter.StringVar()
+AAAAAltb1=Tkinter.Listbox(fm3,activestyle="dotbox",bg='grey',fg='black',listvariable=ltb1Value,selectmode=Tkinter.EXTENDED,height=19,width=20)
+AAAAAltb1.grid(row=2,rowspan=1,column=1,columnspan=2,padx=2,pady=1)
+AAAAAbel1=Tkinter.Label(fm3,bg='deepskyblue',text='MultiFileBy',height=2,width=20)
+AAAAAbel1.grid(row=1,rowspan=1,column=1,columnspan=2,padx=2,pady=1)
+AAAAA
+AAAAAltb2Value=Tkinter.StringVar()
+AAAAAltb2=Tkinter.Listbox(fm4,activestyle="dotbox",bg='grey',fg='black',listvariable=ltb2Value,selectmode=Tkinter.EXTENDED,height=19,width=20)
+AAAAAltb2.grid(row=2,rowspan=1,column=1,columnspan=2,padx=2,pady=1)
+AAAAAbel2=Tkinter.Label(fm4,bg='deepskyblue',text='MultiFigureBy',height=2,width=20)
+AAAAAbel2.grid(row=1,rowspan=1,column=1,columnspan=2,padx=2,pady=1)
+AAAAA
+AAAAAltb3Value=Tkinter.StringVar()
+AAAAAltb3=Tkinter.Listbox(fm5,activestyle="dotbox",bg='grey',fg='black',listvariable=ltb3Value,selectmode=Tkinter.EXTENDED,height=19,width=20)
+AAAAAltb3.grid(row=2,rowspan=1,column=1,columnspan=2,padx=2,pady=1)
+AAAAAbel3=Tkinter.Label(fm5,bg='deepskyblue',text='MultiPlotBy',height=2,width=20)
+AAAAAbel3.grid(row=1,rowspan=1,column=1,columnspan=2,padx=2,pady=1)
+AAAAA
+AAAAAltb4Value=Tkinter.StringVar()
+AAAAAltb4=Tkinter.Listbox(fm6,activestyle="dotbox",bg='grey',fg='black',listvariable=ltb4Value,selectmode=Tkinter.EXTENDED,height=19,width=20)
+AAAAAltb4.grid(row=2,rowspan=1,column=1,columnspan=2,padx=2,pady=1)
+AAAAAbel4=Tkinter.Label(fm6,bg='deepskyblue',text='TrendBy',height=2,width=20)
+AAAAAbel4.grid(row=1,rowspan=1,column=1,columnspan=2,padx=2,pady=1)
+AAAAA
+AAAAAltb5Value=Tkinter.StringVar()
+AAAAAltb5=Tkinter.Listbox(fm7,activestyle="dotbox",bg='grey',fg='black',listvariable=ltb5Value,selectmode=Tkinter.EXTENDED,height=19,width=20)
+AAAAAltb5.grid(row=2,rowspan=1,column=1,columnspan=2,padx=2,pady=1)
+AAAAAbel5=Tkinter.Label(fm7,bg='deepskyblue',text='Y_axisBy',height=2,width=20)
+AAAAAbel5.grid(row=1,rowspan=1,column=1,columnspan=2,padx=2,pady=1)
+AAAAA
+AAAAAltb6Value=Tkinter.StringVar()
+AAAAAltb6=Tkinter.Listbox(fm8,activestyle="dotbox",bg='grey',fg='black',listvariable=ltb6Value,selectmode=Tkinter.EXTENDED,height=19,width=20)
+AAAAAltb6.grid(row=2,rowspan=1,column=1,columnspan=2,padx=2,pady=1)
+AAAAAbel6=Tkinter.Label(fm8,bg='deepskyblue',text='E_test',height=2,width=20)
+AAAAAbel6.grid(row=1,rowspan=1,column=1,columnspan=2,padx=2,pady=1)
+AAAAA
+AAAAAfot2=tkFont.Font(family='Times',weight='bold',underline=0,size=10)
+AAAAAfot3=tkFont.Font(family='Arial',weight='bold',underline=1,size=9)
+AAAAAbtn_fm2_1=Tkinter.Button(fm2,text="MultiFileBy>>",font=fot2,command=lambda:selectLtbIndex(ltb1),bg='grey',fg='blue',width=13,height=3)
+AAAAAbtn_fm2_1.grid(row=1,rowspan=1,column=2,columnspan=2,ipadx=1,pady=0,sticky='n')
+AAAAAbtn_fm2_2=Tkinter.Button(fm2,text="MultiFigureBy>>",font=fot2,command=lambda:selectLtbIndex(ltb2),bg='grey',fg='blue',width=13,height=3)
+AAAAAbtn_fm2_2.grid(row=2,rowspan=1,column=2,columnspan=2,ipadx=1,pady=0,sticky='n')
+AAAAAbtn_fm2_3=Tkinter.Button(fm2,text="MultiPlotBy>>",font=fot2,command=lambda:selectLtbIndex(ltb3),bg='grey',fg='blue',width=13,height=3)
+AAAAAbtn_fm2_3.grid(row=3,rowspan=1,column=2,columnspan=2,ipadx=1,pady=0,sticky='n')
+AAAAAbtn_fm2_4=Tkinter.Button(fm2,text="TrendBy>>",font=fot2,command=lambda:selectLtbIndex(ltb4),bg='grey',fg='blue',width=13,height=3)
+AAAAAbtn_fm2_4.grid(row=4,rowspan=1,column=2,columnspan=2,ipadx=1,pady=0,sticky='n')
+AAAAAbtn_fm2_5=Tkinter.Button(fm2,text="YaxisBy>>",font=fot2,command=lambda:selectLtbIndex(ltb5),bg='grey',fg='blue',width=13,height=3)
+AAAAAbtn_fm2_5.grid(row=5,rowspan=1,column=2,columnspan=2,ipadx=1,pady=0,sticky='n')
+AAAAAbtn_fm2_6=Tkinter.Button(fm2,text="E_test>>",font=fot2,command=lambda:selectLtbIndex(ltb6),bg='grey',fg='blue',width=13,height=3)
+AAAAAbtn_fm2_6.grid(row=6,rowspan=1,column=2,columnspan=2,ipadx=1,pady=0,sticky='n')
+AAAAAbtn_fm2_7=Tkinter.Button(fm2,text="<<Remove",font=fot3,command=lambda:selectLtbIndex(ltb),bg='grey',fg='red',width=13,height=3)
+AAAAAbtn_fm2_7.grid(row=7,rowspan=1,column=2,columnspan=2,ipadx=1,pady=0,sticky='n')
+AAAAA#chkbtn1Value=Tkinter.IntVar()
+AAAAA#chkbtn1=Tkinter.Checkbutton(root,text="Nfin_trend",bg='grey',fg='black',variable=chkbtn1Value,onvalue=1,offvalue=0)
+AAAAA#chkbtn1.grid(row=4,rowspan=1,column=2,columnspan=2,padx=10,pady=0)
+AAAAA#
+AAAAA#chkbtn2Value=Tkinter.IntVar()
+AAAAA#chkbtn2=Tkinter.Checkbutton(root,   text="L_trend",bg='grey',fg='black',variable=chkbtn2Value,onvalue=1,offvalue=0)
+AAAAA#chkbtn2.grid(row=5,rowspan=1,column=2,columnspan=2,padx=10,pady=0)
+AAAAA
+AAAAA
+AAAAA
+AAAAAroot.mainloop()
+AAAAA
+AAAAA
+AAAAA
+AAAAA
+AAAAA
+AAAAA
+AAAAA
